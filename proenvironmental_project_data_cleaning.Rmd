@@ -1,0 +1,914 @@
+---
+title: "Data Cleaning"
+subtitle: "Pro-environmental Project"
+output:
+  html_document:
+    theme: spacelab
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  word_document:
+    toc: yes
+    toc_depth: '3'
+date: "2023-03-29"
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries, message = FALSE, warning = FALSE, results = 'hide'}
+library(rio) # for importing data
+library(tidyverse) # for tidyverse tools
+library(psych) # for descriptive statistics
+library(janitor) # for data cleaning functions
+library(gtools) # for rbinding data frames
+library(lubridate) # for mdy function (mdy_hm)
+library(readr) # for exporting csv files
+```
+
+# 1) Importing Data 
+
+The experimental data comes from three sources:
+
+* Psychology Human Subjects Pool 
+* Marketing Human Subjects Pool
+* General University of Oregon Population
+
+The pre-screening data was gathered across three terms:
+
+* Fall 2022
+* Winter 2023
+* Spring 2023
+
+The participant list contains an identifier for linking participants from the experimental data to the pre-screening data:
+
+* Participant List
+
+
+```{r import data}
+raw_psych_hum_subj <- import("data/raw/raw_psych_hum_subj.csv")
+raw_mktg_hum_subj <- import("data/raw/raw_mktg_hum_subj.csv")
+raw_gen_uo_pop <- import("data/raw/raw_gen_uo_pop.csv")
+pre_fall22 <- import("data/prescreen/dittersdorf_matches_f22.csv")
+pre_winter23 <- import("data/prescreen/dittersdorf_matches_w23.csv")
+pre_spring23 <- import("data/prescreen/dittersdorf_matches_s23.csv")
+participant_list <- import("data/prescreen/dittersdorf_participants.csv")
+```
+
+# 2) Joining Data 
+
+## Check number of columns {.tabset .tabset-pill}
+
+### Psychology Human Subjects
+```{r}
+ncol(raw_psych_hum_subj)
+```
+
+### Marketing Human Subjects
+```{r}
+ncol(raw_mktg_hum_subj)
+```
+
+### General UO Population
+```{r}
+ncol(raw_gen_uo_pop)
+```
+
+## Check column names {.tabset .tabset-pill}
+
+### Psychology Human Subjects
+```{r}
+names(raw_psych_hum_subj)
+```
+
+### Marketing Human Subjects
+```{r}
+names(raw_mktg_hum_subj)
+```
+
+### General UO Population
+```{r}
+names(raw_gen_uo_pop)
+```
+
+### Notes
+
+* `raw_mktg_hum_subj` and `raw_gen_uo_pop` contain the main experimental data as well as the values & social desirability items
+* For participants in the `raw_psych_hum_subj`, their responses to the values & social desirability items were collected during the pre-screen 
+  + Below, I'll combine `raw_psych_hum_subj` with the three pre-screening data sets 
+
+## Check equivalence of columns {.tabset .tabset-pill}
+
+### Marketing vs General UO Pop. 
+```{r}
+names(raw_mktg_hum_subj) == names(raw_gen_uo_pop)
+```
+
+### Notes
+* Inconsistent starting with column 11. There's an extra, unnecessary column in the marketing data that can be removed.
+```{r}
+raw_mktg_hum_subj <- raw_mktg_hum_subj %>%
+  dplyr::select(-code)
+```
+
+### Check again
+```{r}
+names(raw_mktg_hum_subj) == names(raw_gen_uo_pop)
+```
+
+### Notes
+* The last four columns don't match due to an extra, unnecessary column in the general UO data that can  be removed.
+```{r}
+raw_gen_uo_pop <- raw_gen_uo_pop %>%
+  dplyr::select(-email_giftcard)
+```
+
+### Final check
+```{r}
+names(raw_mktg_hum_subj) == names(raw_gen_uo_pop) # good!
+```
+
+
+## Combine pre-screening data {.tabset .tabset-pill}
+
+* The pre-screening data is contained in three data sets:
+  + pre_fall22
+  + pre_spring23
+  + pre_winter23
+  
+
+### Extracting columns
+
+* Extracting only the columns related to the current study
+```{r check pre_fall22 and pre_spring23}
+pre_fall22 <- pre_fall22 %>%
+  dplyr::select(first_name, last_name, respecting:gossip)
+
+pre_spring23 <- pre_spring23 %>%
+  dplyr::select(first_name, last_name, respecting:gossip)
+
+pre_winter23 <- pre_winter23 %>%
+  dplyr::select(first_name, last_name, respecting:gossip)
+```
+
+### Comparing columns
+```{r}
+names(pre_fall22) == names(pre_spring23)
+names(pre_fall22) == names(pre_winter23)
+```
+
+### Add `term` column
+
+* Add column indicating which term each row came from
+```{r add term column to pre-screen data sources}
+pre_fall22 <- pre_fall22 %>%
+  mutate(term = "fall22")
+
+pre_winter23 <- pre_winter23 %>%
+  mutate(term = "winter23")
+
+pre_spring23 <- pre_spring23 %>%
+  mutate(term = "spring23")
+```
+
+### `rbind` pre-screen data
+
+* Each pre-screening data set contains responses from unique participants. Use `rbind` to combine them all.
+```{r combine pre-screen data}
+prescreen_data <- rbind(pre_fall22, pre_winter23, pre_spring23)
+
+# Check nrow() for each pre-screen data set
+nrow(pre_fall22) 
+nrow(pre_winter23) 
+nrow(pre_spring23) 
+
+# Combined pre-screen should have 1,167 rows
+nrow(prescreen_data) 
+```
+
+### Rename columns
+
+* Rename columns in the pre-screening data to match the column names in the marketing & general UO population data sets
+```{r rename values and SDR items}
+prescreen_data <- prescreen_data %>%
+  rename("values_1" = "respecting",
+         "values_2" = "unity",
+         "values_3" = "protecting",
+         "values_4" = "preventing",
+         "values_5" = "equality",
+         "values_6" = "peace",
+         "values_7" = "justice",
+         "values_8" = "helpful",
+         "values_9" = "power",
+         "values_10" = "wealth",
+         "values_11" = "authority",
+         "values_12" = "influential",
+         "values_13" = "ambition",
+         "values_14" = "pleasures",
+         "values_15" = "enjoying",
+         "values_16" = "gratification",
+         "socially_desirable_1" = "honest",
+         "socially_desirable_2" = "like",
+         "socially_desirable_3" = "disturbing",
+         "socially_desirable_4" = "regret",
+         "socially_desirable_5" = "lose-out",
+         "socially_desirable_6" = "rational",
+         "socially_desirable_7" = "confident",
+         "socially_desirable_8" = "lover",
+         "socially_desirable_9" = "lies",
+         "socially_desirable_10" = "cover-up",
+         "socially_desirable_11" = "advantage",
+         "socially_desirable_12" = "get-even",
+         "socially_desirable_13" = "behind-back",
+         "socially_desirable_14" = "private-talk",
+         "socially_desirable_15" = "take-things",
+         "socially_desirable_16" = "gossip")
+```
+
+## Combine psychology and pre-screening data {.tabset .tabset-pill}
+
+* To connect the pre-screening and psychology human subjects data sets, we need the common identifier in the participant list
+  + participant_list - contains `first_name`, `last_name`, & `survey_id`
+  + raw_psych_hum_subj - contains `id`
+  + prescreen_data - contains `first_name` & `last_name`
+
+### Clean Participant List
+```{r clean participant list, results = 'hide'}
+names(participant_list)
+
+# The unique identifier is called `survey_id` in the participant list and `id` in the others 
+participant_list <- participant_list %>%
+  rename("id" = "survey_id")
+
+# Subset key variables
+participant_list <- participant_list %>%
+  dplyr::select(first_name, last_name, id)
+
+nrow(participant_list) # n = 858
+
+# Combine the first & last name columns into a single unique identifier
+participant_list$full_name <- paste(participant_list$first_name, participant_list$last_name, sep="_")
+
+prescreen_data$full_name <- paste(prescreen_data$first_name, prescreen_data$last_name, sep = "_")
+```
+
+### Merge Participant List & Pre-screen
+```{r merge participant and pre-screen, results = 'hide'}
+nrow(participant_list)
+nrow(prescreen_data)
+
+pre_plus_participant <- merge(participant_list, prescreen_data, by = "full_name")
+
+nrow(pre_plus_participant) # n = 1,167
+
+# Subset key variables
+pre_plus_participant2 <- pre_plus_participant %>%
+  dplyr::select(-c(full_name, first_name.x, last_name.x, first_name.y, last_name.y))
+```
+
+### Problem/Solution
+
+  + **Problem**: Participants completed the pre-screen in multiple terms, but I only want their responses from the term that they participated in the experimental phase of my study 
+  + **Solution**: Add a column to the psychology human subjects data indicating the term in which they completed the study
+
+```{r adding term column}
+# Converting EndDate into year and month of completion columns
+raw_psych_hum_subj$year <- year(mdy_hm(raw_psych_hum_subj$EndDate))
+
+raw_psych_hum_subj$month <- month(mdy_hm(raw_psych_hum_subj$EndDate))
+
+
+# Assign rows to fall22, spring23, or winter23 based on date of completion
+raw_psych_hum_subj$term <- ifelse(raw_psych_hum_subj$year == 2022, "fall22",
+                                  ifelse(raw_psych_hum_subj$year == 2023 & raw_psych_hum_subj$month %in% c(1,2,3), "winter23","spring23"))
+
+
+# Checking output
+date_check <- raw_psych_hum_subj %>%
+  dplyr::select(EndDate, year, month, term)
+
+head(date_check)
+tail(date_check)
+```
+
+
+### Merge Psychology & Pre-screen
+
+* Match the pre-screening + participant ID data with the Psychology Human Subjects data based on matching `id` and `term`
+```{r}
+psych_hum_subj <- merge(raw_psych_hum_subj, pre_plus_participant2, by = c("id","term"))
+
+nrow(psych_hum_subj) # n = 858
+```
+
+```{r check column matches}
+# Arrange columns in psychology human subjects data so they match order in other two data sets
+
+subset_psych_hum_subj <- psych_hum_subj %>%
+  dplyr::select(StartDate:ingroup_ident_DO, socially_desirable_1:socially_desirable_16, values_1:values_16,Age:skept_open,id,framing_condition_DO:norm_condition_DO)
+
+# Remove extra, unnecessary columns 
+raw_mktg_hum_subj <- raw_mktg_hum_subj %>%
+  dplyr::select(-c(socially_desirable_DO,values_DO))
+
+raw_gen_uo_pop <- raw_gen_uo_pop %>%
+  dplyr::select(-c(socially_desirable_DO, values_DO))
+
+# Check whether columns match
+names(subset_psych_hum_subj) == names(raw_mktg_hum_subj)
+```
+
+### Add `source` column
+* Add column indicating data source
+
+```{r add source column}
+subset_psych_hum_subj <- subset_psych_hum_subj %>%
+  mutate(source = strrep("psych_hsp", times = 1))
+
+raw_mktg_hum_subj <- raw_mktg_hum_subj %>%
+  mutate(source = strrep("mktg_hsp", times = 1))
+
+raw_gen_uo_pop <- raw_gen_uo_pop %>%
+  mutate(source = strrep("gen_uo", times = 1))
+```
+
+## Combine experimental data sets {.tabset .tabset-pill}
+
+* Combine the three sources of experimental data. Each data source contains unique participants so want to `rbind` to combine them into a single data set 
+
+### Combine Data
+```{r combine experimental data sources}
+experimental_data <- rbind(subset_psych_hum_subj, raw_mktg_hum_subj, raw_gen_uo_pop)
+```
+
+### Check Result
+```{r}
+# Check number of participants in each data set
+nrow(subset_psych_hum_subj) # n = 858
+nrow(raw_mktg_hum_subj) # n = 287
+nrow(raw_gen_uo_pop) # n = 11
+
+# Combined data should have n = 1,156 rows
+
+nrow(experimental_data) # good!
+```
+
+
+# 3) Subsetting Key Columns
+* Make a smaller, more manageable data set stored in a new object with only the key variables for the current study
+```{r subset key variables}
+subset_data <- experimental_data %>%
+  dplyr::select(big_2_1:big_2_65, consumer_intentions_1:consumer_intentions_9, consumer_behaviors, clothing_interest_1:clothing_interest_20, ingroup_ident_1:ingroup_ident_14, socially_desirable_1:source)
+```
+
+
+# 4) Transforming Measure Types {.tabset .tabset-pill}
+
+## Inspect Measure Types
+
+```{r inspect measure types, results = 'hide'}
+str(subset_data, list.len = ncol(subset_data))
+```
+
+## Transform Measure Types
+
+```{r transform measure types, warning=FALSE}
+subset_data <- subset_data %>%
+  mutate(Age = as.integer(Age),
+         Gender = as.factor(Gender),
+         Class_Lvl = as.factor(Class_Lvl),
+         Employment = as.factor(Employment),
+         Parents_Education = as.factor(Parents_Education),
+         Pol_Ornt = as.factor(Pol_Ornt),
+         Ethnicity = as.factor(Ethnicity),
+         Birth_US = as.factor(Birth_US),
+         Raised_US = as.factor(Raised_US),
+         framing_condition_DO = as.factor(framing_condition_DO),
+         norm_condition_DO = as.factor(norm_condition_DO),
+         consumer_behaviors = as.factor(consumer_behaviors),
+         skepticism = as.factor(skepticism),
+         id = as.factor(id),
+         socially_desirable_1 = as.integer(socially_desirable_1),
+         socially_desirable_2 = as.integer(socially_desirable_2),
+         socially_desirable_3 = as.integer(socially_desirable_3),
+         socially_desirable_4 = as.integer(socially_desirable_4),
+         socially_desirable_5 = as.integer(socially_desirable_5),
+         socially_desirable_6 = as.integer(socially_desirable_6),
+         socially_desirable_7 = as.integer(socially_desirable_7),
+         socially_desirable_8 = as.integer(socially_desirable_8),
+         socially_desirable_9 = as.integer(socially_desirable_9),
+         socially_desirable_10 = as.integer(socially_desirable_10),
+         socially_desirable_11 = as.integer(socially_desirable_11),
+         socially_desirable_12 = as.integer(socially_desirable_12),
+         socially_desirable_13 = as.integer(socially_desirable_13),
+         socially_desirable_14 = as.integer(socially_desirable_14),
+         socially_desirable_15 = as.integer(socially_desirable_15),
+         socially_desirable_16 = as.integer(socially_desirable_16),
+         values_1 = as.integer(values_1),
+         values_2 = as.integer(values_2),
+         values_3 = as.integer(values_3),
+         values_4 = as.integer(values_4),
+         values_5 = as.integer(values_5),
+         values_6 = as.integer(values_6),
+         values_7 = as.integer(values_7),
+         values_8 = as.integer(values_8),
+         values_9 = as.integer(values_9),
+         values_10 = as.integer(values_10),
+         values_11 = as.integer(values_11),
+         values_12 = as.integer(values_12),
+         values_13 = as.integer(values_13),
+         values_14 = as.integer(values_14),
+         values_15 = as.integer(values_15),
+         values_16 = as.integer(values_16))
+```
+
+
+
+# 5) Checking for Data Entry Errors {.tabset .tabset-pill}
+
+## Pro-environmental Outcomes
+
+* Inspecting descriptive statistics to examine whether there's indication of any data entry errors
+
+```{r inspecting data entry errors}
+# Consumer Outcomes 
+subset_data %>%
+  dplyr::select(consumer_intentions_1:consumer_behaviors) %>%
+  psych::describe()
+```
+
+## Covariate Variables 
+```{r}
+# Covariate Items
+subset_data %>%
+  dplyr::select(clothing_interest_1:values_16) %>%
+  psych::describe()
+```
+
+## Intervention Conditions
+```{r}
+# Framing Condition
+table(subset_data$framing_condition_DO)
+
+# Norm Condition
+table(subset_data$norm_condition_DO)
+```
+
+## Demographics
+```{r}
+# Demographics
+subset_data %>%
+  dplyr::select(Age, Gender, Class_Lvl, Income, Employment, Parents_Education, Pol_Ornt, Ethnicity, Birth_US, Raised_US) %>%
+  psych::describe()
+
+table(subset_data$Gender)
+table(subset_data$Class_Lvl)
+table(subset_data$Income)
+table(subset_data$Employment)
+table(subset_data$Parents_Education)
+table(subset_data$Pol_Ornt)
+table(subset_data$Ethnicity)
+table(subset_data$Birth_US)
+table(subset_data$Raised_US)
+```
+
+## Fixing Issue
+* There's an issue with the `Age` variable. The maximum is 1999 instead of the participant's age in years
+
+```{r fixing Age data entry error}
+subset_data$Age[subset_data$Age == 1999] <- 24
+
+describe(subset_data$Age) # good!
+```
+
+
+
+# 6) Removing Duplicate IDs {.tabset .tabset-pill}
+
+## Identify Duplicate IDs
+
+```{r identify duplicate IDs}
+# Add unique row numbers
+subset_data <- subset_data %>%
+  mutate(row = 1:nrow(subset_data))
+
+# Identify duplicate participant IDs
+duplicates <- subset_data[duplicated(subset_data$id),]
+duplicates$row
+```
+
+## Notes
+
+* Rows to remove after inspection of data:
+  + 13 (participant's second time completing study)
+  + 134 (participant didn't complete study first time)
+  + 145 (participant didn't complete study first time)
+  + 308 (participant's second time completing study)
+  + 672 (participant's second time completing study)
+  + 743 (participant didn't complete study first time)
+  + 790 (participant didn't complete study first time)
+  + 800 (participant didn't complete study first time)
+
+## Remove Duplicates
+
+```{r remove duplicate IDs}
+subset_data <- subset_data %>%
+  filter(!row %in% c(13, 134, 145, 308, 672, 743, 790, 800))
+```
+
+
+# 7) Removing Empty Rows {.tabset .tabset-pill}
+
+## Identify Empty Rows
+```{r remove empty rows}
+# Identify rows with missing data on key experimental variables
+key_vars <- subset_data %>%
+  dplyr::select(row, big_2_1:ingroup_ident_14)
+
+ncol(key_vars) # 110 columns (109 key variables)
+
+all_NA_rows <- key_vars[rowSums(is.na(key_vars)) == 109,]
+
+nrow(all_NA_rows)
+all_NA_rows$row
+```
+
+## Remove Empty Rows
+```{r}
+# Remove the rows with missing data on all key variables
+subset_data <- subset_data %>%
+  dplyr::filter(!row %in% c(133, 144, 859, 860, 900, 926, 927, 941, 1139, 1141, 1142, 1143, 1144, 1146, 1149, 1150, 1152))
+```
+
+## Sample Size per Source
+```{r}
+## n per Source
+nrow(subset_data)
+table(subset_data$source)
+```
+
+* 848 = psych human subjects pool
+* 280 = mktg human subjects pool
+* 11 = general UO population
+
+
+# 8) Renaming Columns {.tabset .tabset-pill}
+
+## Rename Intervention Columns
+```{r rename variables}
+# Rename Norm and Framing Manipulation Variables
+subset_data <- subset_data %>%
+  rename("framing_condition" = "framing_condition_DO", 
+         "norm_condition" = "norm_condition_DO")
+```
+
+## Drop NA Levels
+```{r}
+# Drop Unused Levels from Factors
+levels(subset_data$framing_condition)
+subset_data$framing_condition[subset_data$framing_condition == ""] <- NA
+subset_data$framing_condition <- droplevels(subset_data$framing_condition)
+
+levels(subset_data$norm_condition)
+subset_data$norm_condition[subset_data$norm_condition == ""] <- NA
+subset_data$norm_condition <- droplevels(subset_data$norm_condition, exclude = NA)
+```
+
+## Label & Reorder Levels
+```{r}
+# Re-order levels of norm condition & add labels
+subset_data$norm_condition <- factor(subset_data$norm_condition, levels = c("control_norm", "descriptive_norm", "convention_norm", "social_norm", "moral_norm"), labels = c("Control", "Descriptive Norm", "Convention", "Social Norm", "Moral Norm"))
+
+# Label levels of framing condition
+subset_data$framing_condition <- factor(subset_data$framing_condition, levels = c("control_framing", "pro_env_framing", "self_enh_framing"), labels = c("Control", "Pro-Environmental", "Self-Enhancing"))
+```
+
+
+# 9) Labeling Factor Levels {.tabset .tabset-pill}
+
+## Gender
+
+- 1 = woman
+- 2 = man
+- 3 = non-binary
+- 4 = I prefer not to identify
+- 5 = other (please specify)
+
+```{r}
+clean_data <- subset_data %>%
+  mutate(Gender = factor(Gender, labels = c("Women","Men","Non-binary","Prefers to not identify","Other")))
+```
+
+
+## Income
+
+- 1 = $0-9,999
+- 2 = $10,000 - 19,999
+- 3 = $20,000 - 29,999
+- 4 = $30,000 - 39,999
+- 5 = $40,000 - 49.999
+- 6 = $50,000 - 59,999
+- 7 = $60,000 - 69,999
+- 8 = $70,000 - 79,999
+- 9 = $80,000 - 89,999
+- 10 = $90,000 - 99,999
+- 11 = $100,000 or more
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(Income = factor(Income, labels = c("$0 - 9,999", "$10,000 - 19,999", "$20,000 - 29,999", "$30,000 - 39,999", "$40,000 - 49.999", "$50,000 - 59,999", "$60,000 - 69,999", "$70,000 - 79,999", "$80,000 - 89,999", "$90,000 - 99,999", "$100,000 or more")))
+```
+
+## Employment
+
+- 1 = Employed, working 1-39 hrs/wk
+- 2 = Employed, working 40+ hrs/wk
+- 3 = Not employed, looking for work
+- 4 = Not employed, NOT looking for work
+- 5 = Retired
+- 6 = Not able to work
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(Employment = factor(Employment, labels = c("Employed, working 1-39 hrs/wk", "Employed, working 40+ hrs/wk", "Not employed, looking for work", "Not employed, NOT looking for work", "Retired", "Not able to work")))
+```
+
+## Class Level
+
+- 1 = Freshman
+- 2 = Sophomore
+- 3 = Junior
+- 4 = Senior
+- 5 = Graduate student
+- 6 = Not applicable
+- 7 = Other
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(Class_Lvl = factor(Class_Lvl, labels = c("Freshman", "Sophomore", "Junior", "Senior", "Graduate Student", "n/a", "Other")))
+```
+
+## Ethnicity
+
+- 1 = American Indian or Alaska Native
+- 2 = Asian
+- 3 = Black or African American
+- 4 = Hispanic or Latino
+- 5 = Pacific Islander
+- 6 = White
+- 7 = Mixed Ethnicity
+- 8 = Other
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(Ethnicity = factor(Ethnicity, labels = c("American Indian or Alaska Native", "Asian", "Black or African American", "Hispanic or Latino", "Pacific Islander", "White", "Mixed Ethnicity", "Other")))
+```
+
+## Parent(s)' Education
+
+- 1 = Middle school or some high school
+- 2 = High school or GED
+- 3 = Some college
+- 4 = College degree
+- 5 = Master's degree
+- 6 = Doctorate
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(Parents_Education = factor(Parents_Education, labels = c("Some high school", "High school or GED", "Some college", "College degree", "Master's degree", "Doctorate")))
+```
+
+## Political Orientation
+
+- 1 = Very liberal
+- 2 = Somewhat liberal
+- 3 = Slightly liberal
+- 4 = Neither liberal nor conservative
+- 5 = Slightly conservative
+- 6 = Somewhat conservative
+- 7 = Very conservative
+- 8 = Other
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(Political_Orientation = factor(Pol_Ornt, labels = c("Very liberal", "Somewhat liberal", "Slightly liberal", "Neither liberal nor conservative", "Slightly conservative", "Somewhat conservative", "Very conservative", "Other")))
+```
+
+
+
+# 10) Aggregating Variables {.tabset .tabset-pill}
+
+## Clothing Interest
+
+* Reverse-code
+```{r reverse clothing items}
+data_R <- clean_data %>%
+  mutate(across(c(clothing_interest_3,
+                  clothing_interest_5,
+                  clothing_interest_7,
+                  clothing_interest_9,
+                  clothing_interest_12,
+                  clothing_interest_14,
+                  clothing_interest_15,
+                  clothing_interest_16,
+                  clothing_interest_18,
+                  clothing_interest_20), ~6 - .))
+```
+
+* Average items
+```{r aggregate clothing interest}
+data_R$clothing_interest <- data_R %>%
+  dplyr::select(clothing_interest_1:clothing_interest_20) %>%
+  rowMeans(na.rm = TRUE)
+```
+
+* Scale reliability
+```{r alpha clothing interest, echo = FALSE}
+alpha_cloth <- data_R %>%
+  dplyr::select(clothing_interest_1:clothing_interest_20) %>%
+  psych::alpha()
+
+alpha_cloth
+```
+
+
+## In-group Identification
+
+* Reverse-code
+  + No items need to be reverse-coded.
+
+* Average items
+```{r aggegate ingroup ident}
+data_R$ingroup_identification <- data_R %>%
+  dplyr::select(ingroup_ident_1:ingroup_ident_14) %>%
+  rowMeans(na.rm = TRUE)
+```
+
+
+* Scale reliability
+```{r alpha ingroup ident, echo = FALSE}
+alpha_ingroup <- data_R %>%
+  dplyr::select(ingroup_ident_1:ingroup_ident_14) %>%
+  psych::alpha()
+
+alpha_ingroup
+```
+
+
+## Values
+
+* Reverse-code
+  + No items need to be reverse-coded.
+
+* Recoding scale options
+
+Recoding values:
+
+* -3 = 1
+* -2 = 2
+* -1 = 3
+* 0 = 4
+* +1 = 5
+* +2 = 6
+* +3 = 7
+
+```{r recode values}
+table(data_R$values_1)
+
+data_R$values_1_rec <- dplyr::recode(data_R$values_1, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+
+table(data_R$values_1_rec)
+
+data_R$values_2_rec <- dplyr::recode(data_R$values_2, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_3_rec <- dplyr::recode(data_R$values_3, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_4_rec <- dplyr::recode(data_R$values_4, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_5_rec <- dplyr::recode(data_R$values_5, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_6_rec <- dplyr::recode(data_R$values_6, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_7_rec <- dplyr::recode(data_R$values_7, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_8_rec <- dplyr::recode(data_R$values_8, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_9_rec <- dplyr::recode(data_R$values_9, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_10_rec <- dplyr::recode(data_R$values_10, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_11_rec <- dplyr::recode(data_R$values_11, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_12_rec <- dplyr::recode(data_R$values_12, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_13_rec <- dplyr::recode(data_R$values_13, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_14_rec <- dplyr::recode(data_R$values_14, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_15_rec <- dplyr::recode(data_R$values_15, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+data_R$values_16_rec <- dplyr::recode(data_R$values_16, `-3` = 1, `-2` = 2, `-1` = 3, `0` = 4, `1` = 5, `2` = 6, `3` = 7)
+
+table(data_R$values_16)
+table(data_R$values_16_rec)
+```
+
+
+* Average items
+```{r aggregate values}
+data_R$biospheric <- data_R %>%
+  dplyr::select(values_1_rec:values_4_rec) %>%
+  rowMeans(na.rm = TRUE)
+
+data_R$egoistic <- data_R %>%
+  dplyr::select(values_9_rec:values_13_rec) %>%
+  rowMeans(na.rm = TRUE)
+```
+
+
+
+* Scale reliability
+```{r alpha values, echo = FALSE}
+alpha_biospheric <- data_R %>%
+  dplyr::select(values_1_rec:values_4_rec) %>%
+  psych::alpha()
+
+alpha_egoistic <- data_R %>%
+  dplyr::select(values_9_rec:values_13_rec) %>%
+  psych::alpha()
+
+alpha_biospheric
+alpha_egoistic
+```
+
+
+
+## Socially Desirable Responding
+
+* Reverse-code
+```{r reverse code socially desirable items}
+data_R <- data_R %>%
+  mutate(across(c(socially_desirable_1,
+                  socially_desirable_3,
+                  socially_desirable_5,
+                  socially_desirable_8,
+                  socially_desirable_9,
+                  socially_desirable_11,
+                  socially_desirable_12,
+                  socially_desirable_13), ~8 - .)) 
+```
+
+* Average items
+```{r aggregate socially desirable}
+data_R$self_deceptive_sdr <- data_R %>%
+  dplyr::select(socially_desirable_1:socially_desirable_8) %>%
+  rowMeans(na.rm = TRUE)
+  
+data_R$impress_manag_sdr <- data_R %>%
+  dplyr::select(socially_desirable_9:socially_desirable_16) %>%
+  rowMeans(na.rm = TRUE)
+```
+
+
+
+* Scale reliability
+```{r alpha socially desirable, echo = FALSE}
+alpha_SDE_sdr <- data_R %>%
+  dplyr::select(socially_desirable_1:socially_desirable_8) %>%
+  psych::alpha()
+
+alpha_IM_sdr <- data_R %>%
+  dplyr::select(socially_desirable_9:socially_desirable_16) %>%
+  psych::alpha()
+
+alpha_SDE_sdr
+alpha_IM_sdr
+```
+
+
+## Consumer Intentions
+
+* Reverse-code
+
+Higher scores mean better consumer intentions (intentions to *reduce* future consumption):
+```{r reverse code consumer intentions}
+data_R <- data_R %>%
+  mutate(across(c(consumer_intentions_2,
+                  consumer_intentions_4,
+                  consumer_intentions_7,
+                  consumer_intentions_9), ~8 - .)) # replace '#' with the max possible value plus 1 for any particular scale
+```
+
+* Average items
+```{r aggregate consumer intentions}
+data_R$consumer_intentions <- data_R %>%
+  dplyr::select(consumer_intentions_1:consumer_intentions_9) %>%
+  rowMeans(na.rm = TRUE)
+```
+
+
+* Scale reliability
+```{r alpha consumer intentions, echo = FALSE}
+alpha_cons_int <- data_R %>%
+  dplyr::select(consumer_intentions_1:consumer_intentions_9) %>%
+  psych::alpha()
+
+alpha_cons_int
+```
+
+# 11) Exporting Cleaned Data
+```{r}
+write.csv(data_R, "proenv_clean_data.csv")
+```
+
+
