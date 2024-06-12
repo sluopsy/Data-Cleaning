@@ -1,16 +1,19 @@
 ---
 title: "Data Cleaning"
 subtitle: "Pro-environmental Project"
+date: "2023-03-29"
 output:
   html_document:
     theme: spacelab
-    toc: yes
+    toc: true
     toc_depth: 3
-    toc_float: yes
+    toc_float: true
   word_document:
-    toc: yes
+    toc: true
     toc_depth: '3'
-date: "2023-03-29"
+  pdf_document:
+    toc: true
+    toc_depth: '3'
 editor_options:
   chunk_output_type: console
 ---

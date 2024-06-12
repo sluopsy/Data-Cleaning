@@ -1513,7 +1513,6 @@ border-radius: 0px;
 library(tidyverse) # for tidyverse tools
 library(psych) # for descriptive statistics
 library(janitor) # for data cleaning functions
-library(Hmisc) # for histogram matrix
 library(gtools) # for rbinding data frames
 library(lubridate) # for mdy function (mdy_hm)
 library(readr) # for exporting csv files</code></pre>
@@ -2088,7 +2087,7 @@ raw_gen_uo_pop &lt;- raw_gen_uo_pop %&gt;%
 </div>
 </div>
 <div id="combine-experimental-data-sets" class="section level2 tabset tabset-pill">
-<h2 class="tabset tabset-pill">Combine Experimental Data Sets</h2>
+<h2 class="tabset tabset-pill">Combine experimental data sets</h2>
 <ul>
 <li>Combine the three sources of experimental data. Each data source
 contains unique participants so want to <code>rbind</code> to combine
@@ -2445,21 +2444,8 @@ subset_data %&gt;%
 <pre class="r"><code>subset_data$Age[subset_data$Age == 1999] &lt;- 24
 
 describe(subset_data$Age) # good!</code></pre>
-<pre><code>## subset_data$Age 
-##        n  missing distinct     Info     Mean      Gmd      .05      .10 
-##     1032      124       15    0.952    19.87    1.789       18       18 
-##      .25      .50      .75      .90      .95 
-##       19       19       21       22       22 
-##                                                                             
-## Value         18    19    20    21    22    23    24    25    28    29    30
-## Frequency    222   308   166   193   105    11    13     5     3     1     1
-## Proportion 0.215 0.298 0.161 0.187 0.102 0.011 0.013 0.005 0.003 0.001 0.001
-##                                   
-## Value         31    32    33    50
-## Frequency      1     1     1     1
-## Proportion 0.001 0.001 0.001 0.001
-## 
-## For the frequency table, variable is rounded to the nearest 0</code></pre>
+<pre><code>##    vars    n  mean   sd median trimmed  mad min max range skew kurtosis   se
+## X1    1 1032 19.87 1.95     19   19.67 1.48  18  50    32 4.91    59.27 0.06</code></pre>
 </div>
 </div>
 <div id="removing-duplicate-ids" class="section level1 tabset tabset-pill">
